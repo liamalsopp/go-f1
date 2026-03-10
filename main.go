@@ -33,7 +33,6 @@ var (
 		"v1/team_radio",
 		"v1/drivers",
 		"v1/location",
-		"v1/position",
 		"v1/overtakes",
 	}
 )
@@ -43,7 +42,7 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 }
 
 var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
-	fmt.Printf("Connect lost: %v", err)
+	fmt.Printf("Connect lost: %v\n", err)
 }
 
 func main() {
@@ -61,9 +60,11 @@ func main() {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(Broker)
 	opts.SetClientID(ClientID)
-
 	opts.SetUsername(Username)
 	opts.SetPassword(Token)
+	opts.SetAutoReconnect(true)
+	opts.SetOnConnectHandler(connectHandler)
+	opts.SetConnectionLostHandler(connectLostHandler)
 
 	logFile, err := os.OpenFile("f1_live_data.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -87,14 +88,12 @@ func main() {
 		// Optional: If you want to parse specific topics:
 
 		if msg.Topic() == "v1/car_data" {
-			var data CarData // Defined in your openf1_types.go
-			if err := json.Unmarshal(msg.Payload(), &data); err == nil {
-				log.Printf("Failed to save car data: %v", err)
+			var data CarData
+			if err := json.Unmarshal(msg.Payload(), &data); err != nil {
+				log.Printf("Failed to parse car data: %v", err)
 			}
 		}
 	})
-	opts.OnConnect = connectHandler
-	opts.OnConnectionLost = connectLostHandler
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
